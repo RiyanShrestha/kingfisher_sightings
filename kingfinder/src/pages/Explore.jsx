@@ -15,9 +15,12 @@ function Explore() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [speciesFilter, setSpeciesFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("all");
-  const [researchOnly, setResearchOnly] = useState(false);
+  const [speciesFilter, setSpeciesFilter] =
+    useState("all");
+  const [dateFilter, setDateFilter] =
+    useState("all");
+  const [researchOnly, setResearchOnly] =
+    useState(false);
 
   // ============================================================
   // FETCH SIGHTINGS
@@ -51,7 +54,10 @@ function Explore() {
           );
         }
       } catch (err) {
-        console.error("KingFinder API error:", err);
+        console.error(
+          "KingFinder API error:",
+          err
+        );
 
         if (!cancelled) {
           setError(
@@ -73,19 +79,7 @@ function Explore() {
   }, []);
 
   // ============================================================
-  // REMOVE ONLY TRUE OBSERVATION DUPLICATES
-  //
-  // IMPORTANT:
-  // We DO NOT deduplicate using photo IDs.
-  //
-  // A photo can potentially be reused or represented differently
-  // by different sources. Removing a complete sighting because
-  // of a photo ID can accidentally delete genuine observations.
-  //
-  // The safest identity is:
-  //
-  // source/platform + observation ID
-  //
+  // REMOVE TRUE OBSERVATION DUPLICATES
   // ============================================================
 
   const uniqueSightings = useMemo(() => {
@@ -104,20 +98,12 @@ function Explore() {
         sighting.observation?.observationId ??
         sighting.id;
 
-      /*
-       * If we have a real observation ID, use it.
-       *
-       * This prevents:
-       * iNaturalist observation 123
-       * from being confused with
-       * GBIF observation 123
-       */
-
       if (
         observationId !== undefined &&
         observationId !== null
       ) {
-        const key = `${source}-${observationId}`;
+        const key =
+          `${source}-${observationId}`;
 
         if (seen.has(key)) {
           continue;
@@ -125,20 +111,18 @@ function Explore() {
 
         seen.add(key);
       } else {
-        /*
-         * Very rare fallback for records without an ID.
-         * We use a combination of species + date + location
-         * rather than deleting them just because the image
-         * happens to be the same.
-         */
-
         const fallbackKey = [
           source,
-          sighting.species?.scientificName || "",
-          sighting.observation?.date || "",
-          sighting.location?.name || "",
-          sighting.location?.latitude || "",
-          sighting.location?.longitude || "",
+          sighting.species
+            ?.scientificName || "",
+          sighting.observation
+            ?.date || "",
+          sighting.location
+            ?.name || "",
+          sighting.location
+            ?.latitude || "",
+          sighting.location
+            ?.longitude || "",
         ].join("|");
 
         if (seen.has(fallbackKey)) {
@@ -156,13 +140,6 @@ function Explore() {
 
   // ============================================================
   // UNIQUE LOCATION COUNT
-  //
-  // A sighting and a location are NOT the same thing.
-  //
-  // Example:
-  // 206 observations can exist at 153 different locations.
-  //
-  // This value can also be passed to the map.
   // ============================================================
 
   const uniqueLocationCount = useMemo(() => {
@@ -181,12 +158,11 @@ function Explore() {
         longitude !== null &&
         longitude !== undefined
       ) {
-        /*
-         * Round slightly so extremely small coordinate
-         * differences do not create unnecessary locations.
-         */
-        const lat = Number(latitude).toFixed(4);
-        const lng = Number(longitude).toFixed(4);
+        const lat =
+          Number(latitude).toFixed(4);
+
+        const lng =
+          Number(longitude).toFixed(4);
 
         locations.add(`${lat},${lng}`);
       }
@@ -204,11 +180,15 @@ function Explore() {
 
     uniqueSightings.forEach((sighting) => {
       const commonName =
-        sighting.species?.commonName?.trim() ||
+        sighting.species
+          ?.commonName
+          ?.trim() ||
         "Unknown Kingfisher";
 
       const scientificName =
-        sighting.species?.scientificName?.trim() ||
+        sighting.species
+          ?.scientificName
+          ?.trim() ||
         "Unknown";
 
       const key =
@@ -263,40 +243,33 @@ function Explore() {
 
     return uniqueSightings.filter(
       (sighting) => {
-        // ------------------------------------------------------
-        // SPECIES
-        // ------------------------------------------------------
-
         const commonName =
-          sighting.species?.commonName?.trim() ||
-          "";
+          sighting.species
+            ?.commonName
+            ?.trim() || "";
 
         const scientificName =
-          sighting.species?.scientificName?.trim() ||
-          "";
+          sighting.species
+            ?.scientificName
+            ?.trim() || "";
 
         const speciesKey =
           `${commonName}||${scientificName}`;
 
-        // ------------------------------------------------------
-        // LOCATION
-        // ------------------------------------------------------
-
         const locationName =
-          sighting.location?.name?.trim() ||
-          "";
+          sighting.location
+            ?.name
+            ?.trim() || "";
 
         const city =
-          sighting.location?.city?.trim() ||
-          "";
+          sighting.location
+            ?.city
+            ?.trim() || "";
 
         const state =
-          sighting.location?.state?.trim() ||
-          "";
-
-        // ------------------------------------------------------
-        // SEARCH
-        // ------------------------------------------------------
+          sighting.location
+            ?.state
+            ?.trim() || "";
 
         const searchableText = [
           commonName,
@@ -312,17 +285,9 @@ function Explore() {
           !query ||
           searchableText.includes(query);
 
-        // ------------------------------------------------------
-        // SPECIES FILTER
-        // ------------------------------------------------------
-
         const matchesSpecies =
           speciesFilter === "all" ||
           speciesKey === speciesFilter;
-
-        // ------------------------------------------------------
-        // DATE FILTER
-        // ------------------------------------------------------
 
         let matchesDate = true;
 
@@ -356,10 +321,6 @@ function Explore() {
             }
           }
         }
-
-        // ------------------------------------------------------
-        // RESEARCH GRADE
-        // ------------------------------------------------------
 
         const matchesResearch =
           !researchOnly ||
@@ -405,9 +366,6 @@ function Explore() {
 
   // ============================================================
   // IMAGE URL
-  //
-  // Prefer originalUrl.
-  // Then use url.
   // ============================================================
 
   const getImageUrl = (sighting) => {
@@ -447,9 +405,10 @@ function Explore() {
         </h1>
 
         <p>
-          Discover recent real-world kingfisher
-          observations around Bengaluru and narrow
-          them down to the sightings you want.
+          Discover recent real-world
+          kingfisher observations around
+          Bengaluru and narrow them down
+          to the sightings you want.
         </p>
 
       </section>
@@ -468,7 +427,8 @@ function Explore() {
             </h2>
 
             <p>
-              Fetching current data from iNaturalist.
+              Fetching current data from
+              iNaturalist.
             </p>
 
           </div>
@@ -762,7 +722,6 @@ function Explore() {
 
             <KingfisherMap
               sightings={filteredSightings}
-              locationCount={uniqueLocationCount}
             />
 
             {/* ==================================================
@@ -780,8 +739,8 @@ function Explore() {
                   </h2>
 
                   <p>
-                    Browse the observations matching
-                    your filters.
+                    Browse the observations
+                    matching your filters.
                   </p>
 
                 </div>
@@ -820,10 +779,6 @@ function Explore() {
 
               ) : (
 
-                /* ==================================================
-                    CARDS
-                ================================================== */
-
                 <div className="sightings-grid">
 
                   {filteredSightings
@@ -834,19 +789,6 @@ function Explore() {
                         getImageUrl(
                           sighting
                         );
-
-                      /*
-                       * IMPORTANT:
-                       * React key must include the source.
-                       *
-                       * Example:
-                       *
-                       * iNaturalist-123
-                       * GBIF-123
-                       *
-                       * These are NOT necessarily the same
-                       * observation.
-                       */
 
                       const source =
                         sighting.source
@@ -873,12 +815,9 @@ function Explore() {
                           key={cardKey}
                         >
 
-                          {/* ==================================================
-                              IMAGE
-                          ================================================== */}
+                          {/* IMAGE */}
 
                           {imageUrl && (
-
                             <img
                               src={imageUrl}
                               alt={
@@ -898,7 +837,8 @@ function Explore() {
                                 if (
                                   fallback &&
                                   event.currentTarget
-                                    .src !== fallback
+                                    .src !==
+                                    fallback
                                 ) {
                                   event.currentTarget.src =
                                     fallback;
@@ -907,38 +847,26 @@ function Explore() {
                                     .style.display =
                                     "none";
                                 }
+
                               }}
                             />
-
                           )}
 
-                          {/* ==================================================
-                              CARD BODY
-                          ================================================== */}
+                          {/* CARD BODY */}
 
                           <div className="sighting-body">
 
-                            {/* SPECIES */}
-
                             <p className="sighting-species">
-
                               {sighting.species
                                 ?.commonName ||
                                 "Unknown Kingfisher"}
-
                             </p>
 
-                            {/* SCIENTIFIC NAME */}
-
                             <p className="scientific-name">
-
                               {sighting.species
                                 ?.scientificName ||
                                 "Scientific name unavailable"}
-
                             </p>
-
-                            {/* LOCATION */}
 
                             <div className="sighting-details">
 
@@ -949,8 +877,6 @@ function Explore() {
                                   "Bengaluru"}
                               </span>
 
-                              {/* DATE */}
-
                               <span>
                                 📅{" "}
                                 {sighting.observation
@@ -958,23 +884,16 @@ function Explore() {
                                   "Date unavailable"}
                               </span>
 
-                              {/* RESEARCH GRADE */}
-
                               {sighting.verification
                                 ?.isResearchGrade && (
-
                                 <span className="research-card-badge">
                                   ✓ Research Grade
                                 </span>
-
                               )}
 
                             </div>
 
-                            {/* ORIGINAL OBSERVATION */}
-
                             {sighting.source?.url && (
-
                               <a
                                 href={
                                   sighting.source.url
@@ -986,7 +905,6 @@ function Explore() {
                                 View original
                                 observation →
                               </a>
-
                             )}
 
                           </div>
@@ -996,23 +914,16 @@ function Explore() {
                     })}
 
                 </div>
-
               )}
 
-              {/* ==================================================
-                  RESULTS NOTE
-              ================================================== */}
+              {/* RESULTS NOTE */}
 
               {filteredSightings.length > 30 && (
-
                 <p className="results-note">
-
                   Showing the first 30 matching
-                  observations. The map continues to
-                  show all matching locations.
-
+                  observations. The map continues
+                  to show all matching locations.
                 </p>
-
               )}
 
             </section>

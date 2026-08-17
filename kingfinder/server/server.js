@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 /* ============================================================
-   KINGFINDER CONFIGURATION
+   CONFIGURATION
 ============================================================ */
 
 const BENGALURU_BOUNDS = {
@@ -25,6 +25,27 @@ const BENGALURU_BOUNDS = {
 };
 
 const LOOKBACK_DAYS = 365;
+
+/*
+  IMPORTANT:
+  External APIs can sometimes hang.
+  This prevents the frontend from waiting forever.
+*/
+const FETCH_TIMEOUT_MS = 15000;
+
+/*
+  Cache API results for 5 minutes.
+  This means refreshing the Explore page will NOT
+  call iNaturalist + GBIF every single time.
+*/
+const SIGHTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let sightingsCache = null;
+let sightingsCacheTime = 0;
+
+/* ============================================================
+   KINGFISHER SPECIES
+============================================================ */
 
 const KINGFISHER_SPECIES = [
   {
@@ -80,26 +101,48 @@ function getToday() {
 ============================================================ */
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
+  const controller = new AbortController();
 
-    headers: {
-      Accept: "application/json",
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, FETCH_TIMEOUT_MS);
 
-      "User-Agent":
-        "KingFinder/1.0 (Kingfisher Sightings Research Project)",
+  try {
+    const response = await fetch(url, {
+      ...options,
 
-      ...(options.headers || {}),
-    },
-  });
+      signal: controller.signal,
 
-  if (!response.ok) {
-    throw new Error(
-      `Request failed: ${response.status} ${response.statusText}`
-    );
+      headers: {
+        Accept: "application/json",
+
+        "User-Agent":
+          "KingFinder/1.0 (Kingfisher Sightings Research Project)",
+
+        ...(options.headers || {}),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Request failed: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(
+        `Request timed out after ${
+          FETCH_TIMEOUT_MS / 1000
+        } seconds`
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json();
 }
 
 /* ============================================================
@@ -111,33 +154,16 @@ function getBestINaturalistImageUrl(photo) {
     return null;
   }
 
-  /*
-    Prefer original_url because it contains
-    the highest-quality available image.
-  */
-
   if (photo.original_url) {
     return photo.original_url;
   }
 
   if (photo.url) {
     return photo.url
-      .replace(
-        "/square.",
-        "/large."
-      )
-      .replace(
-        "/thumb.",
-        "/large."
-      )
-      .replace(
-        "/small.",
-        "/large."
-      )
-      .replace(
-        "/medium.",
-        "/large."
-      );
+      .replace("/square.", "/large.")
+      .replace("/thumb.", "/large.")
+      .replace("/small.", "/large.")
+      .replace("/medium.", "/large.");
   }
 
   return null;
@@ -151,33 +177,16 @@ function getINaturalistImageCandidates(photo) {
   const candidates = [];
 
   if (photo.original_url) {
-    candidates.push(
-      photo.original_url
-    );
+    candidates.push(photo.original_url);
   }
 
   if (photo.url) {
-    const upgraded =
-      photo.url
-        .replace(
-          "/square.",
-          "/large."
-        )
-        .replace(
-          "/thumb.",
-          "/large."
-        )
-        .replace(
-          "/small.",
-          "/large."
-        )
-        .replace(
-          "/medium.",
-          "/large."
-        );
-
     candidates.push(
-      upgraded
+      photo.url
+        .replace("/square.", "/large.")
+        .replace("/thumb.", "/large.")
+        .replace("/small.", "/large.")
+        .replace("/medium.", "/large.")
     );
   }
 
@@ -209,10 +218,7 @@ function createGBIFImageCacheUrl(
   identifier,
   width = 1200
 ) {
-  if (
-    !gbifId ||
-    !identifier
-  ) {
+  if (!gbifId || !identifier) {
     return null;
   }
 
@@ -237,41 +243,21 @@ function normalizeINaturalistObservation(
   const taxon =
     observation.taxon || {};
 
-  /*
-    iNaturalist coordinates may be provided as:
-
-    observation.latitude
-    observation.longitude
-
-    OR
-
-    observation.geojson.coordinates
-
-    GeoJSON uses:
-
-    [longitude, latitude]
-  */
-
   let latitude =
     observation.latitude !== null &&
     observation.latitude !== undefined
-      ? Number(
-          observation.latitude
-        )
+      ? Number(observation.latitude)
       : null;
 
   let longitude =
     observation.longitude !== null &&
     observation.longitude !== undefined
-      ? Number(
-          observation.longitude
-        )
+      ? Number(observation.longitude)
       : null;
 
   /*
-    IMPORTANT:
-    Fall back to GeoJSON if direct
-    latitude/longitude are unavailable.
+    Fallback to GeoJSON coordinates.
+    GeoJSON format is [longitude, latitude].
   */
 
   if (
@@ -286,26 +272,16 @@ function normalizeINaturalistObservation(
     observation.geojson.coordinates.length >= 2
   ) {
     longitude = Number(
-      observation
-        .geojson
-        .coordinates[0]
+      observation.geojson.coordinates[0]
     );
 
     latitude = Number(
-      observation
-        .geojson
-        .coordinates[1]
+      observation.geojson.coordinates[1]
     );
   }
 
-  /* ========================================================
-     OBSERVATION MEDIA
-  ======================================================== */
-
   const media =
-    (
-      observation.photos || []
-    )
+    (observation.photos || [])
       .map((photo) => {
         const url =
           getBestINaturalistImageUrl(
@@ -323,8 +299,7 @@ function normalizeINaturalistObservation(
           url,
 
           originalUrl:
-            photo.original_url ||
-            null,
+            photo.original_url || null,
 
           candidates:
             getINaturalistImageCandidates(
@@ -335,13 +310,10 @@ function normalizeINaturalistObservation(
             "iNaturalist",
 
           license:
-            getImageLicense(
-              photo
-            ),
+            getImageLicense(photo),
 
           attribution:
-            photo.attribution ||
-            null,
+            photo.attribution || null,
 
           sourceUrl:
             `https://www.inaturalist.org/observations/${observation.id}`,
@@ -418,8 +390,7 @@ function normalizeINaturalistObservation(
         `https://www.inaturalist.org/observations/${observation.id}`,
 
       license:
-        observation.license ||
-        null,
+        observation.license || null,
 
       retrievedAt:
         new Date().toISOString(),
@@ -457,17 +428,14 @@ function normalizeINaturalistObservation(
         : null,
 
     rarity: {
-      localLabel:
-        null,
-
-      localScore:
-        null,
+      localLabel: null,
+      localScore: null,
     },
   };
 }
 
 /* ============================================================
-   iNATURALIST ADAPTER
+   iNATURALIST API
 ============================================================ */
 
 async function fetchINaturalistSpecies(
@@ -545,7 +513,7 @@ async function fetchINaturalistSpecies(
 }
 
 /* ============================================================
-   GBIF IMAGE HELPER
+   GBIF IMAGE
 ============================================================ */
 
 function getGBIFImageData(
@@ -558,12 +526,10 @@ function getGBIFImageData(
   }
 
   const publisherUrl =
-    media.identifier ||
-    null;
+    media.identifier || null;
 
   const referencesUrl =
-    media.references ||
-    null;
+    media.references || null;
 
   const primaryUrl =
     publisherUrl ||
@@ -599,12 +565,10 @@ function getGBIFImageData(
       "GBIF",
 
     license:
-      media.license ||
-      null,
+      media.license || null,
 
     attribution:
-      media.creator ||
-      null,
+      media.creator || null,
 
     sourceUrl:
       `https://www.gbif.org/occurrence/${gbifId}`,
@@ -645,9 +609,7 @@ function normalizeGBIFObservation(
     scientificName;
 
   const media =
-    Array.isArray(
-      record.media
-    )
+    Array.isArray(record.media)
       ? record.media
           .map(
             (item, index) =>
@@ -663,8 +625,7 @@ function normalizeGBIFObservation(
   const latitude =
     record.decimalLatitude !==
       undefined &&
-    record.decimalLatitude !==
-      null
+    record.decimalLatitude !== null
       ? Number(
           record.decimalLatitude
         )
@@ -673,8 +634,7 @@ function normalizeGBIFObservation(
   const longitude =
     record.decimalLongitude !==
       undefined &&
-    record.decimalLongitude !==
-      null
+    record.decimalLongitude !== null
       ? Number(
           record.decimalLongitude
         )
@@ -698,8 +658,7 @@ function normalizeGBIFObservation(
         record.dateIdentified ||
         null,
 
-      time:
-        null,
+      time: null,
 
       count:
         record.individualCount ||
@@ -745,38 +704,31 @@ function normalizeGBIFObservation(
         `https://www.gbif.org/occurrence/${record.key}`,
 
       license:
-        record.license ||
-        null,
+        record.license || null,
 
       dataset:
-        record.datasetName ||
-        null,
+        record.datasetName || null,
 
       datasetKey:
-        record.datasetKey ||
-        null,
+        record.datasetKey || null,
 
       occurrenceId:
-        record.occurrenceID ||
-        null,
+        record.occurrenceID || null,
 
       recordedBy:
-        record.recordedBy ||
-        null,
+        record.recordedBy || null,
 
       retrievedAt:
         new Date().toISOString(),
     },
 
     verification: {
-      qualityGrade:
-        null,
+      qualityGrade: null,
 
       isResearchGrade:
         false,
 
-      geoprivacy:
-        null,
+      geoprivacy: null,
 
       coordinatesObscured:
         false,
@@ -795,45 +747,37 @@ function normalizeGBIFObservation(
         : null,
 
     rarity: {
-      localLabel:
-        null,
-
-      localScore:
-        null,
+      localLabel: null,
+      localScore: null,
     },
   };
 }
 
 /* ============================================================
-   GBIF BENGALURU GEOMETRY
+   GBIF GEOMETRY
 ============================================================ */
 
 function getBengaluruGBIFGeometry() {
-  const swLat =
-    BENGALURU_BOUNDS.swlat;
-
-  const swLng =
-    BENGALURU_BOUNDS.swlng;
-
-  const neLat =
-    BENGALURU_BOUNDS.nelat;
-
-  const neLng =
-    BENGALURU_BOUNDS.nelng;
+  const {
+    swlat,
+    swlng,
+    nelat,
+    nelng,
+  } = BENGALURU_BOUNDS;
 
   return [
     "POLYGON((",
-    `${swLng} ${swLat},`,
-    `${neLng} ${swLat},`,
-    `${neLng} ${neLat},`,
-    `${swLng} ${neLat},`,
-    `${swLng} ${swLat}`,
+    `${swlng} ${swlat},`,
+    `${nelng} ${swlat},`,
+    `${nelng} ${nelat},`,
+    `${swlng} ${nelat},`,
+    `${swlng} ${swlat}`,
     "))",
   ].join("");
 }
 
 /* ============================================================
-   GBIF ADAPTER
+   GBIF API
 ============================================================ */
 
 async function fetchGBIFSpecies(
@@ -945,15 +889,9 @@ function isINaturalistDerivedGBIFRecord(
     .toLowerCase();
 
   return (
-    values.includes(
-      "inaturalist"
-    ) ||
-    values.includes(
-      "i-naturalist"
-    ) ||
-    values.includes(
-      "inat"
-    )
+    values.includes("inaturalist") ||
+    values.includes("i-naturalist") ||
+    values.includes("inat")
   );
 }
 
@@ -1029,15 +967,13 @@ function isWithinLookbackPeriod(
 }
 
 /* ============================================================
-   EXACT SOURCE DEDUPLICATION
+   SOURCE DEDUPLICATION
 ============================================================ */
 
 function deduplicateSightings(
   sightings
 ) {
-  const seen =
-    new Set();
-
+  const seen = new Set();
   const unique = [];
 
   for (
@@ -1055,24 +991,19 @@ function deduplicateSightings(
     const key =
       `${platform}:${sourceId}`;
 
-    if (
-      seen.has(key)
-    ) {
+    if (seen.has(key)) {
       continue;
     }
 
     seen.add(key);
-
-    unique.push(
-      sighting
-    );
+    unique.push(sighting);
   }
 
   return unique;
 }
 
 /* ============================================================
-   LOCATION NORMALIZATION
+   LOCATION HELPERS
 ============================================================ */
 
 function normalizeLocationName(
@@ -1094,10 +1025,6 @@ function normalizeLocationName(
     )
     .trim();
 }
-
-/* ============================================================
-   COORDINATE ROUNDING
-============================================================ */
 
 function roundCoordinate(
   value,
@@ -1125,7 +1052,7 @@ function roundCoordinate(
 }
 
 /* ============================================================
-   VISUAL DUPLICATE KEY
+   VISUAL DUPLICATION
 ============================================================ */
 
 function getVisualDuplicateKey(
@@ -1177,15 +1104,10 @@ function getVisualDuplicateKey(
   ].join("|");
 }
 
-/* ============================================================
-   VISUAL DEDUPLICATION
-============================================================ */
-
 function deduplicateVisualSightings(
   sightings
 ) {
-  const map =
-    new Map();
+  const map = new Map();
 
   for (
     const sighting of sightings
@@ -1208,15 +1130,13 @@ function deduplicateVisualSightings(
     }
 
     const existingSource =
-      existing.source
-        ?.platform;
+      existing.source?.platform;
 
     const currentSource =
-      sighting.source
-        ?.platform;
+      sighting.source?.platform;
 
     /*
-      Prefer iNaturalist over GBIF.
+      Prefer iNaturalist.
     */
 
     if (
@@ -1235,7 +1155,7 @@ function deduplicateVisualSightings(
 
     /*
       Otherwise prefer a record
-      that has an image.
+      that contains an image.
     */
 
     const existingHasImage =
@@ -1265,7 +1185,7 @@ function deduplicateVisualSightings(
 }
 
 /* ============================================================
-   CROSS-SOURCE IDENTITY DEDUPLICATION
+   CROSS-SOURCE DEDUPLICATION
 ============================================================ */
 
 function hasSameObservationIdentity(
@@ -1299,45 +1219,33 @@ function hasSameObservationIdentity(
       ?.occurrenceId;
 
   if (
-    aPlatform ===
-      "GBIF" &&
-    bPlatform ===
-      "iNaturalist" &&
+    aPlatform === "GBIF" &&
+    bPlatform === "iNaturalist" &&
     aOccurrence &&
     bObservation
   ) {
     return String(
       aOccurrence
     ).includes(
-      String(
-        bObservation
-      )
+      String(bObservation)
     );
   }
 
   if (
-    bPlatform ===
-      "GBIF" &&
-    aPlatform ===
-      "iNaturalist" &&
+    bPlatform === "GBIF" &&
+    aPlatform === "iNaturalist" &&
     bOccurrence &&
     aObservation
   ) {
     return String(
       bOccurrence
     ).includes(
-      String(
-        aObservation
-      )
+      String(aObservation)
     );
   }
 
   return false;
 }
-
-/* ============================================================
-   CROSS-SOURCE DEDUPLICATION
-============================================================ */
 
 function deduplicateAcrossSources(
   sightings
@@ -1371,7 +1279,7 @@ function deduplicateAcrossSources(
 }
 
 /* ============================================================
-   SORT SIGHTINGS
+   SORTING
 ============================================================ */
 
 function sortSightings(
@@ -1383,16 +1291,14 @@ function sortSightings(
     (a, b) => {
       const dateA =
         new Date(
-          a.observation
-            ?.date ||
-            0
+          a.observation?.date ||
+          0
         );
 
       const dateB =
         new Date(
-          b.observation
-            ?.date ||
-            0
+          b.observation?.date ||
+          0
         );
 
       return (
@@ -1404,7 +1310,7 @@ function sortSightings(
 }
 
 /* ============================================================
-   IMAGE QUALITY HELPERS
+   IMAGE QUALITY
 ============================================================ */
 
 function getImageScore(
@@ -1430,21 +1336,15 @@ function getImageScore(
     score += 20;
   }
 
-  if (
-    image.originalUrl
-  ) {
+  if (image.originalUrl) {
     score += 20;
   }
 
-  if (
-    image.cacheUrl
-  ) {
+  if (image.cacheUrl) {
     score += 10;
   }
 
-  if (
-    image.url
-  ) {
+  if (image.url) {
     score += 10;
   }
 
@@ -1465,7 +1365,6 @@ function sortMedia(
 
 /* ============================================================
    WIKIMEDIA COMMONS
-   SPECIES REFERENCE IMAGE ADAPTER
 ============================================================ */
 
 async function fetchWikimediaReferenceImages(
@@ -1528,8 +1427,7 @@ async function fetchWikimediaReferenceImages(
           page.imageinfo[0];
 
         const metadata =
-          info.extmetadata ||
-          {};
+          info.extmetadata || {};
 
         const artist =
           metadata.Artist?.value ||
@@ -1581,12 +1479,10 @@ async function fetchWikimediaReferenceImages(
           license,
 
           width:
-            info.width ||
-            null,
+            info.width || null,
 
           height:
-            info.height ||
-            null,
+            info.height || null,
 
           type:
             "species-reference",
@@ -1603,15 +1499,14 @@ async function fetchWikimediaReferenceImages(
 }
 
 /* ============================================================
-   API: HEALTH
+   HEALTH
 ============================================================ */
 
 app.get(
   "/api/health",
   (req, res) => {
     res.json({
-      success:
-        true,
+      success: true,
 
       service:
         "KingFinder API",
@@ -1635,38 +1530,75 @@ app.get(
 );
 
 /* ============================================================
-   API: SIGHTINGS
+   SIGHTINGS
 ============================================================ */
 
 app.get(
   "/api/sightings",
   async (req, res) => {
+    /*
+      CACHE
+    */
+
+    const cacheAge =
+      Date.now() -
+      sightingsCacheTime;
+
+    if (
+      sightingsCache &&
+      cacheAge <
+        SIGHTINGS_CACHE_TTL_MS
+    ) {
+      console.log(
+        `KingFinder: returning cached sightings (${Math.round(
+          cacheAge / 1000
+        )} seconds old)`
+      );
+
+      return res.json({
+        ...sightingsCache,
+
+        cached:
+          true,
+      });
+    }
+
     try {
       console.log(
         "=========================================="
       );
 
       console.log(
-        "KingFinder: fetching iNaturalist..."
+        "KingFinder: fetching iNaturalist + GBIF..."
       );
 
-      const inatResults =
-        await Promise.allSettled(
+      /*
+        IMPORTANT FIX:
+        Fetch BOTH sources at the same time.
+
+        Previously:
+        iNaturalist -> wait -> GBIF
+
+        Now:
+        iNaturalist + GBIF simultaneously
+      */
+
+      const [
+        inatResults,
+        gbifResults,
+      ] = await Promise.all([
+        Promise.allSettled(
           KINGFISHER_SPECIES.map(
             fetchINaturalistSpecies
           )
-        );
+        ),
 
-      console.log(
-        "KingFinder: fetching GBIF..."
-      );
-
-      const gbifResults =
-        await Promise.allSettled(
+        Promise.allSettled(
           KINGFISHER_SPECIES.map(
             fetchGBIFSpecies
           )
-        );
+        ),
+      ]);
 
       /* ========================================================
          iNATURALIST
@@ -1778,7 +1710,7 @@ app.get(
       );
 
       /* ========================================================
-         SOURCE DEDUPLICATION
+         DEDUPLICATION
       ======================================================== */
 
       const sourceUnique =
@@ -1790,10 +1722,6 @@ app.get(
         `After source deduplication: ${sourceUnique.length}`
       );
 
-      /* ========================================================
-         CROSS-SOURCE DEDUPLICATION
-      ======================================================== */
-
       const crossSourceUnique =
         deduplicateAcrossSources(
           sourceUnique
@@ -1802,10 +1730,6 @@ app.get(
       console.log(
         `After cross-source deduplication: ${crossSourceUnique.length}`
       );
-
-      /* ========================================================
-         VISUAL / EVENT DEDUPLICATION
-      ======================================================== */
 
       const finalSightings =
         deduplicateVisualSightings(
@@ -1912,7 +1836,7 @@ app.get(
         );
 
       /* ========================================================
-         UNIQUE LOCATION COUNT
+         UNIQUE LOCATIONS
       ======================================================== */
 
       const locationKeys =
@@ -2017,6 +1941,16 @@ app.get(
         "=========================================="
       );
 
+      /*
+        SAVE TO CACHE
+      */
+
+      sightingsCache =
+        response;
+
+      sightingsCacheTime =
+        Date.now();
+
       res.json(
         response
       );
@@ -2026,9 +1960,7 @@ app.get(
         error
       );
 
-      res.status(
-        500
-      ).json({
+      res.status(500).json({
         success:
           false,
 
@@ -2043,7 +1975,7 @@ app.get(
 );
 
 /* ============================================================
-   API: SPECIES REFERENCE IMAGES
+   SPECIES REFERENCE IMAGES
 ============================================================ */
 
 app.get(
@@ -2114,9 +2046,7 @@ app.get(
         error
       );
 
-      res.status(
-        500
-      ).json({
+      res.status(500).json({
         success:
           false,
 
@@ -2131,7 +2061,7 @@ app.get(
 );
 
 /* ============================================================
-   API: SPECIES LIST
+   SPECIES LIST
 ============================================================ */
 
 app.get(
@@ -2151,26 +2081,29 @@ app.get(
 );
 
 /* ============================================================
-   API: DEBUG
+   DEBUG
 ============================================================ */
 
 app.get(
   "/api/debug",
   async (req, res) => {
     try {
-      const inatResults =
-        await Promise.allSettled(
+      const [
+        inatResults,
+        gbifResults,
+      ] = await Promise.all([
+        Promise.allSettled(
           KINGFISHER_SPECIES.map(
             fetchINaturalistSpecies
           )
-        );
+        ),
 
-      const gbifResults =
-        await Promise.allSettled(
+        Promise.allSettled(
           KINGFISHER_SPECIES.map(
             fetchGBIFSpecies
           )
-        );
+        ),
+      ]);
 
       const inatRaw =
         inatResults
@@ -2353,9 +2286,7 @@ app.get(
         error
       );
 
-      res.status(
-        500
-      ).json({
+      res.status(500).json({
         success:
           false,
 
@@ -2391,6 +2322,18 @@ app.listen(
 
     console.log(
       `Lookback: ${LOOKBACK_DAYS} days`
+    );
+
+    console.log(
+      `External API timeout: ${
+        FETCH_TIMEOUT_MS / 1000
+      } seconds`
+    );
+
+    console.log(
+      `Sightings cache: ${
+        SIGHTINGS_CACHE_TTL_MS / 60000
+      } minutes`
     );
 
     console.log(
