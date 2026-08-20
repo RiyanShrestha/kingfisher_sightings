@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import PageContainer from "../components/PageContainer";
 
@@ -7,16 +8,15 @@ function NotFound() {
       <section className="page-header">
         <p className="eyebrow">404</p>
         <h1>Page Not Found</h1>
-        <p>
-          The page you're looking for doesn't exist.
-        </p>
-      </section>
+        <p>The page you're looking for doesn't exist.</p>
 
-      <div className="placeholder-card">
-        <Link to="/" className="primary-button">
-          Back to Home
-        </Link>
-      </div>
+        <div className="hero-actions">
+          <Link to="/" className="primary-button">
+            <ArrowLeft size={18} />
+            Back to Home
+          </Link>
+        </div>
+      </section>
     </PageContainer>
   );
 }
