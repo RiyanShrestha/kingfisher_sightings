@@ -9,6 +9,13 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+import {
+  getGoogleMapsUrl,
+  getSourceName,
+  getObservationId,
+  getBestImage,
+} from "../utils/sightingHelpers";
+
 // ============================================================
 // DEFAULT LEAFLET MARKER ICON
 // ============================================================
@@ -102,52 +109,6 @@ function MapLocationController({
   return null;
 }
 
-// ============================================================
-// GOOGLE MAPS URL
-// ============================================================
-
-function getGoogleMapsUrl(latitude, longitude) {
-  return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-}
-
-// ============================================================
-// GET STABLE SOURCE NAME
-// ============================================================
-
-function getSourceName(sighting) {
-  return (
-    sighting.source?.platform ||
-    sighting.source?.name ||
-    sighting.source?.type ||
-    "unknown"
-  );
-}
-
-// ============================================================
-// GET STABLE OBSERVATION ID
-// ============================================================
-
-function getObservationId(sighting) {
-  return (
-    sighting.source?.observationId ??
-    sighting.observation?.observationId ??
-    sighting.id
-  );
-}
-
-// ============================================================
-// GET BEST AVAILABLE IMAGE
-// ============================================================
-
-function getBestImage(sighting) {
-  const media = sighting.media?.[0];
-
-  if (!media) {
-    return null;
-  }
-
-  return media.originalUrl || media.url || null;
-}
 
 // ============================================================
 // DEGREES TO RADIANS

@@ -5,6 +5,7 @@ import { Explore } from "../pages/Explore";
 import Photographer from "../pages/Photographer";
 import ReportSighting from "../pages/ReportSighting";
 import Insights from "../pages/Insights";
+import NotFound from "../pages/NotFound";
 
 function AppRoutes() {
   return (
@@ -23,6 +24,7 @@ function AppRoutes() {
         path="/insights"
         element={<Insights />}
       />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

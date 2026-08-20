@@ -1,16 +1,71 @@
-# React + Vite
+# KingFinder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A web application for discovering kingfisher sightings and finding the best photography opportunities around Bengaluru, Karnataka, India.
 
-Currently, two official plugins are available:
+KingFinder aggregates real-world observation data from iNaturalist and GBIF, normalizes and deduplicates records, and presents them through an interactive map and a photography recommendation system.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Home** — Landing page introducing KingFinder
+- **Explore** — Browse and filter real kingfisher sightings with an interactive Leaflet map
+- **Photographer Mode** — Location rankings and recommendations based on observation activity, species diversity, photographic evidence, and recent activity
+- **Interactive Map** — Find nearby sightings with geolocation support and Google Maps integration
+- **Report Sighting** — Placeholder for future sighting submissions
+- **Insights** — Placeholder for future analytics and charts
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- **Frontend:** React, Vite, React Router, Leaflet, Lucide React
+- **Backend:** Express, Node.js
+- **Data Sources:** iNaturalist API, GBIF API, Wikimedia Commons
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Project Structure
+
+```
+kingfinder/
+├── src/                    # React frontend
+│   ├── components/         # Shared components (Navbar, Logo, Map, etc.)
+│   ├── layouts/            # Layout wrappers
+│   ├── pages/              # Page components
+│   │   └── photographer/   # Photographer Mode modules
+│   ├── routes/             # Route configuration
+│   ├── styles/             # Global styles
+│   └── utils/              # Shared utility functions
+├── server/                 # Express backend
+│   └── server.js           # API server (iNaturalist + GBIF aggregation)
+├── public/                 # Static assets
+└── .env                    # Environment configuration (not committed)
+```
+
+## Running the Project
+
+### Backend
+
+```bash
+cd server
+npm install
+npm start
+```
+
+The backend runs on `http://localhost:5000` by default.
+
+### Frontend
+
+```bash
+npm install
+npm run dev
+```
+
+The frontend uses the following environment variable:
+
+```env
+VITE_API_URL=http://localhost:5000
+```
+
+Create a `.env` file in the project root with this value if it does not already exist.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:5000` | Backend API base URL |

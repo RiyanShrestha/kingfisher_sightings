@@ -8,6 +8,10 @@ import {
 } from "lucide-react";
 
 import KingfisherMap from "../components/KingfisherMap";
+import { dedupSightings } from "../utils/dedupSightings";
+import { getBestImageUrl } from "../utils/sightingHelpers";
+
+const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/sightings`;
 
 function Explore() {
   const [sightings, setSightings] = useState([]);
@@ -34,9 +38,7 @@ function Explore() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(
-          "http://localhost:5000/api/sightings"
-        );
+        const response = await fetch(API_URL);
 
         if (!response.ok) {
           throw new Error(
@@ -82,61 +84,10 @@ function Explore() {
   // REMOVE TRUE OBSERVATION DUPLICATES
   // ============================================================
 
-  const uniqueSightings = useMemo(() => {
-    const seen = new Set();
-    const unique = [];
-
-    for (const sighting of sightings) {
-      const source =
-        sighting.source?.platform ||
-        sighting.source?.name ||
-        sighting.source?.type ||
-        "unknown";
-
-      const observationId =
-        sighting.source?.observationId ??
-        sighting.observation?.observationId ??
-        sighting.id;
-
-      if (
-        observationId !== undefined &&
-        observationId !== null
-      ) {
-        const key =
-          `${source}-${observationId}`;
-
-        if (seen.has(key)) {
-          continue;
-        }
-
-        seen.add(key);
-      } else {
-        const fallbackKey = [
-          source,
-          sighting.species
-            ?.scientificName || "",
-          sighting.observation
-            ?.date || "",
-          sighting.location
-            ?.name || "",
-          sighting.location
-            ?.latitude || "",
-          sighting.location
-            ?.longitude || "",
-        ].join("|");
-
-        if (seen.has(fallbackKey)) {
-          continue;
-        }
-
-        seen.add(fallbackKey);
-      }
-
-      unique.push(sighting);
-    }
-
-    return unique;
-  }, [sightings]);
+  const uniqueSightings = useMemo(
+    () => dedupSightings(sightings),
+    [sightings]
+  );
 
   // ============================================================
   // UNIQUE LOCATION COUNT
@@ -368,20 +319,7 @@ function Explore() {
   // IMAGE URL
   // ============================================================
 
-  const getImageUrl = (sighting) => {
-    const media =
-      sighting.media?.[0];
-
-    if (!media) {
-      return null;
-    }
-
-    return (
-      media.originalUrl ||
-      media.url ||
-      null
-    );
-  };
+  const getImageUrl = getBestImageUrl;
 
   // ============================================================
   // PAGE
