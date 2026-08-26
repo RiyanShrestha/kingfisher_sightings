@@ -9,7 +9,11 @@ server/dist/
 # Environment variables
 .env
 .env.*
+.env.local
+server/.env
+server/.env.*
 !.env.example
+!server/.env.example
 
 # Logs
 *.log

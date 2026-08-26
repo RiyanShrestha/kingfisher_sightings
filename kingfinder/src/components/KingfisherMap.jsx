@@ -109,6 +109,18 @@ function MapLocationController({
   return null;
 }
 
+function FocusLocationController({ focusLocation }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (focusLocation && Number.isFinite(focusLocation.latitude) && Number.isFinite(focusLocation.longitude)) {
+      map.flyTo([focusLocation.latitude, focusLocation.longitude], 14, { duration: 1 });
+    }
+  }, [map, focusLocation]);
+
+  return null;
+}
+
 
 // ============================================================
 // DEGREES TO RADIANS
@@ -214,6 +226,8 @@ const nearestKingfisherIcon = L.divIcon({
 
 function KingfisherMap({
   sightings = [],
+  focusLocation = null,
+  onSelectSighting = null,
 }) {
   // ==========================================================
   // USER LOCATION
@@ -379,8 +393,7 @@ function KingfisherMap({
           error
         );
 
-        let message =
-          "Unable to get your location.";
+        let message;
 
         switch (error.code) {
           case error.PERMISSION_DENIED:
@@ -650,6 +663,10 @@ function KingfisherMap({
             nearestSighting={nearestSighting}
           />
 
+          <FocusLocationController
+            focusLocation={focusLocation}
+          />
+
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -774,6 +791,13 @@ function KingfisherMap({
                     ? 900
                     : 0
                 }
+                eventHandlers={{
+                  click: () => {
+                    if (onSelectSighting) {
+                      onSelectSighting(sighting);
+                    }
+                  },
+                }}
               >
 
                 <Popup

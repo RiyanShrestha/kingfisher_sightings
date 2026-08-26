@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   CalendarDays,
+  ExternalLink,
   Filter,
   MapPin,
   Search,
@@ -9,9 +11,10 @@ import {
 
 import KingfisherMap from "../components/KingfisherMap";
 import { dedupSightings } from "../utils/dedupSightings";
-import { getBestImageUrl } from "../utils/sightingHelpers";
+import { getBestImageUrl, getSightingKey } from "../utils/sightingHelpers";
+import { API_ENDPOINTS } from "../config/api";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/sightings`;
+const API_URL = API_ENDPOINTS.SIGHTINGS;
 
 function Explore() {
   const [sightings, setSightings] = useState([]);
@@ -25,6 +28,29 @@ function Explore() {
     useState("all");
   const [researchOnly, setResearchOnly] =
     useState(false);
+
+  const [selectedSightingId, setSelectedSightingId] = useState(null);
+  const [focusLocation, setFocusLocation] = useState(null);
+
+  const handleSelectSighting = (sighting) => {
+    if (!sighting) return;
+    const cardId = getSightingKey(sighting);
+    
+    setSelectedSightingId(cardId);
+
+    if (sighting.location?.latitude && sighting.location?.longitude) {
+      setFocusLocation({
+        latitude: Number(sighting.location.latitude),
+        longitude: Number(sighting.location.longitude),
+      });
+    }
+
+    // Scroll card into view if available
+    const el = document.getElementById(`sighting-card-${cardId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
 
   // ============================================================
   // FETCH SIGHTINGS
@@ -660,6 +686,8 @@ function Explore() {
 
             <KingfisherMap
               sightings={filteredSightings}
+              focusLocation={focusLocation}
+              onSelectSighting={handleSelectSighting}
             />
 
             {/* ==================================================
@@ -728,29 +756,26 @@ function Explore() {
                           sighting
                         );
 
-                      const source =
-                        sighting.source
-                          ?.platform ||
-                        sighting.source
-                          ?.name ||
-                        sighting.source
-                          ?.type ||
-                        "unknown";
-
-                      const observationId =
-                        sighting.source
-                          ?.observationId ??
-                        sighting.observation
-                          ?.observationId ??
-                        sighting.id;
-
                       const cardKey =
-                        `${source}-${observationId}`;
+                        getSightingKey(sighting);
+
+                      const lat = sighting.location?.latitude;
+                      const lng = sighting.location?.longitude;
+                      const roundKey = lat && lng ? `${Number(lat).toFixed(3)},${Number(lng).toFixed(3)}` : sighting.location?.name || cardKey;
+                      const isSelected = selectedSightingId === cardKey;
 
                       return (
                         <article
-                          className="sighting-card"
+                          id={`sighting-card-${cardKey}`}
+                          className={`sighting-card ${isSelected ? "selected-card" : ""}`}
                           key={cardKey}
+                          onClick={() => handleSelectSighting(sighting)}
+                          style={{
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                            border: isSelected ? "2px solid var(--color-primary)" : "1px solid #e2e8f0",
+                            boxShadow: isSelected ? "0 4px 12px rgba(14, 165, 233, 0.25)" : "none",
+                          }}
                         >
 
                           {/* IMAGE */}
@@ -831,19 +856,31 @@ function Explore() {
 
                             </div>
 
-                            {sighting.source?.url && (
-                              <a
-                                href={
-                                  sighting.source.url
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="source-link"
+                            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                              <Link
+                                to={`/location/${encodeURIComponent(roundKey)}`}
+                                className="secondary-button"
+                                style={{ fontSize: "0.75rem", padding: "0.3rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                View original
-                                observation →
-                              </a>
-                            )}
+                                Location Detail <ExternalLink size={12} />
+                              </Link>
+
+                              {sighting.source?.url && (
+                                <a
+                                  href={
+                                    sighting.source.url
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="source-link"
+                                  style={{ fontSize: "0.75rem" }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  View original →
+                                </a>
+                              )}
+                            </div>
 
                           </div>
 

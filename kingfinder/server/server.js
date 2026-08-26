@@ -4,14 +4,55 @@ const crypto = require("crypto");
 
 const app = express();
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 /* ============================================================
-   MIDDLEWARE
+   MIDDLEWARE & CORS
 ============================================================ */
 
-app.use(cors());
-app.use(express.json());
+const defaultAllowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5000",
+];
+
+const customOrigins = (process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((url) => url.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...customOrigins])];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. server-to-server, curl, health checks)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Check explicit allowed origins list or wildcard/Vercel preview domains
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        process.env.FRONTEND_URL === "*" ||
+        origin.endsWith(".vercel.app");
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      console.warn(`Blocked CORS request from origin: ${origin}`);
+      return callback(new Error(`CORS policy does not allow access from ${origin}`));
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: "10mb" }));
 
 /* ============================================================
    CONFIGURATION
@@ -42,6 +83,7 @@ const SIGHTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 let sightingsCache = null;
 let sightingsCacheTime = 0;
+const userSubmittedSightings = [];
 
 /* ============================================================
    KINGFISHER SPECIES
@@ -100,48 +142,55 @@ function getToday() {
    GENERIC FETCH HELPER
 ============================================================ */
 
-async function fetchJson(url, options = {}) {
-  const controller = new AbortController();
+async function fetchJson(url, options = {}, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, FETCH_TIMEOUT_MS);
 
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "KingFinder/1.0 (Kingfisher Sightings Research Project)",
+          ...(options.headers || {}),
+        },
+      });
 
-  try {
-    const response = await fetch(url, {
-      ...options,
+      if (!response.ok) {
+        if (response.status >= 500 && attempt < retries) {
+          console.warn(`Retrying HTTP ${response.status} for ${url} (Attempt ${attempt + 1}/${retries})...`);
+          await new Promise((res) => setTimeout(res, Math.pow(2, attempt) * 500));
+          continue;
+        }
+        throw new Error(
+          `Request failed: ${response.status} ${response.statusText}`
+        );
+      }
 
-      signal: controller.signal,
+      return await response.json();
+    } catch (error) {
+      if (attempt < retries && error.name !== "AbortError") {
+        console.warn(`Fetch error for ${url}, retrying (${attempt + 1}/${retries}): ${error.message}`);
+        await new Promise((res) => setTimeout(res, Math.pow(2, attempt) * 500));
+        continue;
+      }
+      if (error.name === "AbortError") {
+        throw new Error(
+          `Request timed out after ${
+            FETCH_TIMEOUT_MS / 1000
+          } seconds`
+        );
+      }
 
-      headers: {
-        Accept: "application/json",
-
-        "User-Agent":
-          "KingFinder/1.0 (Kingfisher Sightings Research Project)",
-
-        ...(options.headers || {}),
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Request failed: ${response.status} ${response.statusText}`
-      );
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return await response.json();
-  } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error(
-        `Request timed out after ${
-          FETCH_TIMEOUT_MS / 1000
-        } seconds`
-      );
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -1701,6 +1750,7 @@ app.get(
       ======================================================== */
 
       const combined = [
+        ...userSubmittedSightings,
         ...inatSightings,
         ...gbifSightings,
       ];
@@ -1969,6 +2019,124 @@ app.get(
 
         error:
           error.message,
+      });
+    }
+  }
+);
+
+/* ============================================================
+   SUBMIT USER SIGHTING
+============================================================ */
+
+app.post(
+  "/api/sightings/user",
+  (req, res) => {
+    try {
+      const {
+        speciesCommonName,
+        speciesScientificName,
+        date,
+        time,
+        locationName,
+        latitude,
+        longitude,
+        count = 1,
+        habitat,
+        behaviour,
+        notes,
+        photoUrl,
+        photographerName,
+        cameraInfo,
+      } = req.body || {};
+
+      if (!speciesCommonName || !latitude || !longitude || !date) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required fields: speciesCommonName, date, latitude, and longitude are required.",
+        });
+      }
+
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid latitude or longitude coordinates.",
+        });
+      }
+
+      const id = `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      const newSighting = {
+        id,
+        species: {
+          commonName: speciesCommonName,
+          scientificName: speciesScientificName || speciesCommonName,
+        },
+        observation: {
+          date: date || getToday(),
+          time: time || null,
+          count: parseInt(count, 10) || 1,
+          habitat: habitat || "Unknown",
+          behaviour: behaviour || "Observed",
+          notes: notes || "",
+          isResearchGrade: true,
+          qualityGrade: "research",
+        },
+        location: {
+          name: locationName || "Bengaluru Sighting Location",
+          latitude: lat,
+          longitude: lng,
+          city: "Bengaluru",
+          state: "Karnataka",
+          country: "India",
+        },
+        photographer: {
+          name: photographerName || "Community Contributor",
+          camera: cameraInfo || null,
+        },
+        source: {
+          platform: "User Submitted",
+          type: "Community Sighting",
+          observationId: id,
+          url: null,
+        },
+        media: photoUrl
+          ? [
+              {
+                url: photoUrl,
+                originalUrl: photoUrl,
+                type: "photo",
+                source: "User Upload",
+              },
+            ]
+          : [],
+        primaryImageUrl: photoUrl || null,
+        imageSource: photoUrl ? "User Upload" : null,
+        hasImage: Boolean(photoUrl),
+        imageCount: photoUrl ? 1 : 0,
+      };
+
+      userSubmittedSightings.unshift(newSighting);
+      
+      // Invalidate cache so new sighting appears immediately
+      sightingsCache = null;
+      sightingsCacheTime = 0;
+
+      console.log(`KingFinder: User sighting submitted successfully! Total user sightings: ${userSubmittedSightings.length}`);
+
+      return res.status(201).json({
+        success: true,
+        message: "Sighting reported successfully!",
+        sighting: newSighting,
+      });
+    } catch (error) {
+      console.error("Error saving user sighting:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to save sighting.",
+        error: error.message,
       });
     }
   }
@@ -2303,6 +2471,7 @@ app.get(
 
 app.listen(
   PORT,
+  "0.0.0.0",
   () => {
     console.log(
       "=========================================="

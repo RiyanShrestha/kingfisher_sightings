@@ -13,8 +13,9 @@ import {
   getLatestSighting,
 } from "./helpers";
 import { calculateLocationScore } from "./scoring";
+import { API_ENDPOINTS } from "../../config/api";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/sightings`;
+const API_URL = API_ENDPOINTS.SIGHTINGS;
 
 export function usePhotographerData() {
   const [sightings, setSightings] = useState([]);

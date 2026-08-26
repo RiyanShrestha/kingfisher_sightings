@@ -12,6 +12,7 @@ import {
   Target,
 } from "lucide-react";
 
+import { Link } from "react-router-dom";
 import PageContainer from "../components/PageContainer";
 import { getGoogleMapsUrl } from "../utils/sightingHelpers";
 import {
@@ -650,14 +651,13 @@ function Photographer() {
                         <Camera size={32} />
                       </div>
                     )}
-
                     <div className="location-card-body">
                       <div className="location-rank">
                         <span className="location-rank-number">
                           #{index + 1}
                         </span>
 
-                        <span className="location-score-pill">
+                        <span className="location-score-pill" title="Score breakdown: Observation activity + Species diversity + Photo records + Recent activity">
                           <Star size={12} />
                           {location.score}/100
                         </span>
@@ -665,11 +665,16 @@ function Photographer() {
 
                       <h3>{location.locationName}</h3>
 
-                      <p className="location-species">
-                        {location.species
-                          .slice(0, 4)
-                          .map((species) => species.commonName)
-                          .join(" · ")}
+                      {/* BEST SPECIES AT LOCATION */}
+                      <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--color-primary)", marginBottom: "0.4rem" }}>
+                        🎯 Top Target: {location.species[0]?.commonName || "Kingfisher"} ({location.species[0]?.count || location.sightings.length} records)
+                      </div>
+
+                      {/* PHOTOGRAPHY OPPORTUNITY DESCRIPTION */}
+                      <p className="location-species" style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>
+                        {location.imageSightings > 0
+                          ? `High photographic potential with ${location.imageSightings} verified image logs and ${location.species.length} species.`
+                          : `Good observational activity across ${location.species.length} species recorded.`}
                       </p>
 
                       <div className="location-metrics">
@@ -706,18 +711,29 @@ function Photographer() {
                         )}
                       </div>
 
-                      <a
-                        href={getGoogleMapsUrl(
-                          location.latitude,
-                          location.longitude
-                        )}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="location-link"
-                      >
-                        Open location
-                        <ArrowRight size={14} />
-                      </a>
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
+                        <Link
+                          to={`/location/${encodeURIComponent(location.key)}`}
+                          className="secondary-button"
+                          style={{ fontSize: "0.8rem", padding: "0.4rem 0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                        >
+                          View Details <ArrowRight size={13} />
+                        </Link>
+
+                        <a
+                          href={getGoogleMapsUrl(
+                            location.latitude,
+                            location.longitude
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="location-link"
+                          style={{ fontSize: "0.8rem" }}
+                        >
+                          Open Map
+                          <ArrowRight size={14} />
+                        </a>
+                      </div>
                     </div>
                   </article>
                 );
