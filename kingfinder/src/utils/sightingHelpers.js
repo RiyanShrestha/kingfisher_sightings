@@ -33,17 +33,28 @@ export function getGoogleMapsUrl(latitude, longitude) {
 }
 
 export function getBestImageUrl(sighting) {
-  const media = sighting?.media?.[0];
-
-  if (!media) {
+  if (!sighting) {
     return null;
   }
 
-  return (
-    media.originalUrl ||
-    media.url ||
-    null
-  );
+  const mediaItem = sighting.media?.[0];
+
+  if (mediaItem) {
+    const mediaUrl = mediaItem.originalUrl || mediaItem.url;
+    if (typeof mediaUrl === "string" && mediaUrl.trim()) {
+      return mediaUrl.trim();
+    }
+  }
+
+  if (typeof sighting.primaryImageUrl === "string" && sighting.primaryImageUrl.trim()) {
+    return sighting.primaryImageUrl.trim();
+  }
+
+  if (typeof sighting.photoUrl === "string" && sighting.photoUrl.trim()) {
+    return sighting.photoUrl.trim();
+  }
+
+  return null;
 }
 
 export const getBestImage = getBestImageUrl;

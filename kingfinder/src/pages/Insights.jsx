@@ -26,7 +26,7 @@ import { API_ENDPOINTS } from "../config/api";
 
 const API_URL = API_ENDPOINTS.SIGHTINGS;
 
-const COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#64748b"];
+const COLORS = ["#1f5c45", "#2d6a64", "#0284c7", "#d97706", "#7c3aed", "#64748b"];
 
 function Insights() {
   const [data, setData] = useState(null);
@@ -63,13 +63,13 @@ function Insights() {
   if (loading) {
     return (
       <PageContainer>
-        <section className="page-header">
-          <p className="eyebrow">ANALYTICS</p>
-          <h1>Insights & Analytics</h1>
+        <header className="page-header">
+          <p className="eyebrow">ANALYTICS & METRICS</p>
+          <h1>Observational Insights</h1>
           <p>Analyzing kingfisher sighting distribution across Bengaluru...</p>
-        </section>
+        </header>
         <div className="placeholder-card" style={{ padding: "4rem 2rem", textAlign: "center" }}>
-          <Clock className="spin" size={36} style={{ color: "var(--color-primary)", marginBottom: "1rem" }} />
+          <Clock className="spin" size={36} style={{ color: "var(--color-teal)", marginBottom: "1rem" }} />
           <p>Processing observation records...</p>
         </div>
       </PageContainer>
@@ -79,13 +79,13 @@ function Insights() {
   if (error || !data || !data.sightings) {
     return (
       <PageContainer>
-        <section className="page-header">
-          <p className="eyebrow">ANALYTICS</p>
-          <h1>Insights</h1>
+        <header className="page-header">
+          <p className="eyebrow">ANALYTICS & METRICS</p>
+          <h1>Observational Insights</h1>
           <p>Unable to load analytics data.</p>
-        </section>
-        <div className="placeholder-card" style={{ padding: "2rem", textAlign: "center" }}>
-          <p style={{ color: "#ef4444" }}>Error: {error || "No data received"}</p>
+        </header>
+        <div className="placeholder-card" style={{ padding: "2.5rem", textAlign: "center" }}>
+          <p style={{ color: "#c2410c", fontWeight: 600 }}>Error: {error || "No data received"}</p>
         </div>
       </PageContainer>
     );
@@ -111,9 +111,9 @@ function Insights() {
 
   // Research Grade & Photo Stats
   const researchGradeCount = sightings.filter(
-    (s) => s.observation?.isResearchGrade || s.observation?.qualityGrade === "research"
+    (s) => s.observation?.isResearchGrade || s.observation?.qualityGrade === "research" || s.verification?.isResearchGrade
   ).length;
-  const photoCount = sightings.filter((s) => s.hasImage || (s.media && s.media.length > 0)).length;
+  const photoCount = sightings.filter((s) => s.hasImage || (s.media && s.media.length > 0) || s.primaryImageUrl).length;
 
   // Monthly / Temporal distribution
   const monthMap = {};
@@ -159,175 +159,258 @@ function Insights() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  const customTooltipStyle = {
+    background: "#ffffff",
+    border: "1px solid #dfe5df",
+    borderRadius: "10px",
+    fontSize: "12px",
+    boxShadow: "0 6px 18px rgba(18, 55, 42, 0.08)",
+    padding: "8px 12px",
+    color: "#17201c",
+  };
+
   return (
     <PageContainer>
-      <section className="page-header">
-        <p className="eyebrow">ANALYTICS</p>
-        <h1>Bengaluru Kingfisher Insights</h1>
-        <p>Real-time analytics and observational metrics aggregated from iNaturalist, GBIF, and community reports.</p>
-      </section>
+      <header className="page-header">
+        <p className="eyebrow">ANALYTICS & METRICS</p>
+        <h1>Observational Insights</h1>
+        <p>
+          Real-time analytics and ecological metrics aggregated from iNaturalist research records,
+          GBIF biodiversity archives, and verified local field observations in Bengaluru.
+        </p>
+      </header>
 
-      {/* KPI Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "1.25rem",
-          marginBottom: "2.5rem",
-        }}
-      >
-        <div className="placeholder-card" style={{ padding: "1.25rem", borderLeft: "4px solid var(--color-primary)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", fontSize: "0.85rem", marginBottom: "0.4rem" }}>
-            <Layers size={16} /> Total Sightings
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#0f172a" }}>{totalCount}</div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem" }}>Across Bengaluru Region</div>
-        </div>
+      <div className="insights-page">
+        {/* ======================================================
+            SECTION 1: KPI SUMMARY ROW
+        ====================================================== */}
+        <section className="insights-section">
+          <div className="insights-kpi-grid">
+            <div className="insights-kpi-card">
+              <div className="insights-kpi-top">
+                <span className="insights-kpi-title">Total Sightings</span>
+                <div className="insights-kpi-icon-wrap">
+                  <Layers size={16} />
+                </div>
+              </div>
+              <div>
+                <div className="insights-kpi-value">{totalCount}</div>
+                <div className="insights-kpi-subtext">Across Bengaluru Region</div>
+              </div>
+            </div>
 
-        <div className="placeholder-card" style={{ padding: "1.25rem", borderLeft: "4px solid #10b981" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", fontSize: "0.85rem", marginBottom: "0.4rem" }}>
-            <Compass size={16} /> Recorded Species
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#0f172a" }}>{speciesChartData.length}</div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem" }}>Out of 6 regional species</div>
-        </div>
+            <div className="insights-kpi-card">
+              <div className="insights-kpi-top">
+                <span className="insights-kpi-title">Recorded Species</span>
+                <div className="insights-kpi-icon-wrap">
+                  <Compass size={16} />
+                </div>
+              </div>
+              <div>
+                <div className="insights-kpi-value">{speciesChartData.length}</div>
+                <div className="insights-kpi-subtext">Out of 6 regional species</div>
+              </div>
+            </div>
 
-        <div className="placeholder-card" style={{ padding: "1.25rem", borderLeft: "4px solid #f59e0b" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", fontSize: "0.85rem", marginBottom: "0.4rem" }}>
-            <Camera size={16} /> Photo Evidence
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#0f172a" }}>
-            {Math.round((photoCount / (totalCount || 1)) * 100)}%
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem" }}>{photoCount} verified photos</div>
-        </div>
+            <div className="insights-kpi-card">
+              <div className="insights-kpi-top">
+                <span className="insights-kpi-title">Photo Evidence</span>
+                <div className="insights-kpi-icon-wrap">
+                  <Camera size={16} />
+                </div>
+              </div>
+              <div>
+                <div className="insights-kpi-value">
+                  {Math.round((photoCount / (totalCount || 1)) * 100)}%
+                </div>
+                <div className="insights-kpi-subtext">{photoCount} verified photos</div>
+              </div>
+            </div>
 
-        <div className="placeholder-card" style={{ padding: "1.25rem", borderLeft: "4px solid #8b5cf6" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", fontSize: "0.85rem", marginBottom: "0.4rem" }}>
-            <Award size={16} /> Research Grade
+            <div className="insights-kpi-card">
+              <div className="insights-kpi-top">
+                <span className="insights-kpi-title">Research Grade</span>
+                <div className="insights-kpi-icon-wrap">
+                  <Award size={16} />
+                </div>
+              </div>
+              <div>
+                <div className="insights-kpi-value">
+                  {Math.round((researchGradeCount / (totalCount || 1)) * 100)}%
+                </div>
+                <div className="insights-kpi-subtext">{researchGradeCount} high-confidence records</div>
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#0f172a" }}>
-            {Math.round((researchGradeCount / (totalCount || 1)) * 100)}%
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem" }}>{researchGradeCount} high-confidence records</div>
-        </div>
-      </div>
+        </section>
 
-      {/* Main Charts Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "1.5rem", marginBottom: "2.5rem" }}>
-        {/* Chart 1: Species Distribution */}
-        <div className="placeholder-card" style={{ padding: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "1rem" }}>Species Distribution</h3>
-          <div style={{ width: "100%", height: "260px" }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={speciesChartData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                  {speciesChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => [`${value} sightings`, "Count"]} />
-                <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
-              </PieChart>
-            </ResponsiveContainer>
+        {/* ======================================================
+            SECTION 2: MAIN CHARTS
+        ====================================================== */}
+        <section className="insights-section">
+          <div className="insights-section-header">
+            <h2>Species Diversity & Temporal Activity</h2>
+            <p>Distribution across identified kingfisher species and monthly observational frequency.</p>
           </div>
-        </div>
 
-        {/* Chart 2: Monthly Sighting Trends */}
-        <div className="placeholder-card" style={{ padding: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "1rem" }}>Sightings Over Time</h3>
-          <div style={{ width: "100%", height: "260px" }}>
-            <ResponsiveContainer>
-              <BarChart data={monthlyChartData}>
-                <XAxis dataKey="month" style={{ fontSize: "0.75rem" }} />
-                <YAxis style={{ fontSize: "0.75rem" }} />
-                <Tooltip formatter={(val) => [`${val} sightings`, "Sightings"]} />
-                <Bar dataKey="sightings" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="insights-charts-grid">
+            {/* Chart 1: Species Distribution */}
+            <div className="insights-chart-card">
+              <div className="insights-chart-header">
+                <h3>Species Distribution</h3>
+                <p>Breakdown of all recorded sightings by species</p>
+              </div>
+              <div className="insights-chart-body">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={speciesChartData}
+                      dataKey="count"
+                      nameKey="name"
+                      cx="50%"
+                      cy="48%"
+                      outerRadius={82}
+                      innerRadius={36}
+                      paddingAngle={3}
+                    >
+                      {speciesChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={customTooltipStyle}
+                      formatter={(value) => [`${value} sightings`, "Count"]}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      height={36}
+                      wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Chart 2: Monthly Sighting Trends */}
+            <div className="insights-chart-card">
+              <div className="insights-chart-header">
+                <h3>Sightings Over Time</h3>
+                <p>Monthly observation trends over the past 12 months</p>
+              </div>
+              <div className="insights-chart-body">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                      axisLine={{ stroke: "var(--color-border)" }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={customTooltipStyle}
+                      formatter={(val) => [`${val} observations`, "Sightings"]}
+                    />
+                    <Bar
+                      dataKey="sightings"
+                      fill="var(--color-teal)"
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Bottom Section: Top Locations & Data Sources */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem" }}>
-        {/* Top Locations Table */}
-        <div className="placeholder-card" style={{ padding: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <MapPin size={18} style={{ color: "var(--color-primary)" }} /> Top Bengaluru Hotspots
-          </h3>
-          <div style={{ display: "grid", gap: "0.75rem" }}>
-            {topLocations.map((loc, idx) => (
-              <div
-                key={loc.key}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "0.75rem",
-                  borderRadius: "8px",
-                  backgroundColor: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
+        {/* ======================================================
+            SECTION 3: SUPPORTING ANALYTICS
+        ====================================================== */}
+        <section className="insights-section">
+          <div className="insights-section-header">
+            <h2>Geographic Hotspots & Data Provenance</h2>
+            <p>Top observation areas in Bengaluru and scientific source distributions.</p>
+          </div>
+
+          <div className="insights-details-grid">
+            {/* Top Locations Table */}
+            <div className="insights-detail-card">
+              <div className="insights-detail-header">
+                <div className="insights-detail-header-icon">
+                  <MapPin size={18} />
+                </div>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
-                    {idx + 1}. {loc.name}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                    {loc.speciesCount} species recorded
-                  </div>
+                  <h3>Top Bengaluru Hotspots</h3>
                 </div>
-                <Link
-                  to={`/location/${encodeURIComponent(loc.key)}`}
-                  className="secondary-button"
-                  style={{ fontSize: "0.75rem", padding: "0.3rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
-                >
-                  {loc.count} sightings <ExternalLink size={12} />
-                </Link>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Data Source Breakdown */}
-        <div className="placeholder-card" style={{ padding: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Layers size={18} style={{ color: "var(--color-primary)" }} /> Data Provider Breakdown
-          </h3>
-          <div style={{ display: "grid", gap: "1rem", marginBottom: "1.5rem" }}>
-            {sourceChartData.map((src, i) => (
-              <div key={src.name}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.25rem" }}>
-                  <span>{src.name}</span>
-                  <span>{src.value} records ({Math.round((src.value / totalCount) * 100)}%)</span>
+              <div className="insights-hotspots-list">
+                {topLocations.map((loc, idx) => (
+                  <div key={loc.key} className="insights-hotspot-item">
+                    <div className="insights-hotspot-info">
+                      <span className="insights-hotspot-name">
+                        {idx + 1}. {loc.name}
+                      </span>
+                      <span className="insights-hotspot-meta">
+                        {loc.speciesCount} {loc.speciesCount === 1 ? "species" : "species"} recorded
+                      </span>
+                    </div>
+                    <Link
+                      to={`/location/${encodeURIComponent(loc.key)}`}
+                      className="insights-hotspot-btn"
+                    >
+                      <span>{loc.count} sightings</span>
+                      <ExternalLink size={12} />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Data Source Breakdown */}
+            <div className="insights-detail-card">
+              <div className="insights-detail-header">
+                <div className="insights-detail-header-icon">
+                  <Layers size={18} />
                 </div>
-                <div style={{ width: "100%", height: "8px", borderRadius: "4px", backgroundColor: "#e2e8f0", overflow: "hidden" }}>
-                  <div
-                    style={{
-                      width: `${(src.value / totalCount) * 100}%`,
-                      height: "100%",
-                      backgroundColor: COLORS[i % COLORS.length],
-                    }}
-                  />
+                <div>
+                  <h3>Data Provider Breakdown</h3>
                 </div>
               </div>
-            ))}
+
+              <div className="insights-providers-list">
+                {sourceChartData.map((src, i) => (
+                  <div key={src.name} className="insights-provider-row">
+                    <div className="insights-provider-meta">
+                      <span className="insights-provider-name">{src.name}</span>
+                      <span className="insights-provider-count">
+                        {src.value} records ({Math.round((src.value / totalCount) * 100)}%)
+                      </span>
+                    </div>
+                    <div className="insights-provider-bar-track">
+                      <div
+                        className="insights-provider-bar-fill"
+                        style={{
+                          width: `${(src.value / totalCount) * 100}%`,
+                          backgroundColor: COLORS[i % COLORS.length],
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="insights-note-box">
+                <strong>Research Quality Assurance:</strong> Field records are cross-deduplicated against global biodiversity archives, prioritizing verifiable photographic evidence and coordinate accuracy.
+              </div>
+            </div>
           </div>
-          <div
-            style={{
-              padding: "0.85rem",
-              borderRadius: "8px",
-              backgroundColor: "rgba(14, 165, 233, 0.08)",
-              border: "1px solid rgba(14, 165, 233, 0.2)",
-              fontSize: "0.8rem",
-              color: "#0369a1",
-              lineHeight: "1.4",
-            }}
-          >
-            <strong>Research Grade Guarantee:</strong> All iNaturalist data is pre-filtered for research-grade quality observations, cross-deduplicated against GBIF records to prevent double-counting.
-          </div>
-        </div>
+        </section>
       </div>
     </PageContainer>
   );

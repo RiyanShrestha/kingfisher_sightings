@@ -183,7 +183,7 @@ function ReportSighting() {
       cameraInfo: "",
     });
     setStep(1);
-    setSubmittedSighting(null);
+    setSubmitError(null);
   };
 
   return (

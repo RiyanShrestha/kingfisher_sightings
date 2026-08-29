@@ -183,7 +183,8 @@ async function fetchJson(url, options = {}, retries = 2) {
         throw new Error(
           `Request timed out after ${
             FETCH_TIMEOUT_MS / 1000
-          } seconds`
+          } seconds`,
+          { cause: error }
         );
       }
 

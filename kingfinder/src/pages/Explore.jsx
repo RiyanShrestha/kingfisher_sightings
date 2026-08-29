@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarDays,
+  Camera,
   ExternalLink,
   Filter,
   MapPin,
@@ -15,6 +16,40 @@ import { getBestImageUrl, getSightingKey } from "../utils/sightingHelpers";
 import { API_ENDPOINTS } from "../config/api";
 
 const API_URL = API_ENDPOINTS.SIGHTINGS;
+
+function ExploreSightingImage({ sighting }) {
+  const [imgError, setImgError] = useState(false);
+  const imageUrl = getBestImageUrl(sighting);
+
+  if (!imageUrl || imgError) {
+    return (
+      <div className="sighting-image-placeholder" aria-label="No image available">
+        <div className="sighting-image-placeholder-icon">
+          <Camera size={22} />
+        </div>
+        <span>No image available</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={sighting.species?.commonName || "Kingfisher observation"}
+      className="sighting-image"
+      loading="lazy"
+      decoding="async"
+      onError={(event) => {
+        const fallback = sighting.media?.[0]?.url;
+        if (fallback && event.currentTarget.src !== fallback) {
+          event.currentTarget.src = fallback;
+        } else {
+          setImgError(true);
+        }
+      }}
+    />
+  );
+}
 
 function Explore() {
   const [sightings, setSightings] = useState([]);
@@ -342,12 +377,7 @@ function Explore() {
   };
 
   // ============================================================
-  // IMAGE URL
-  // ============================================================
 
-  const getImageUrl = getBestImageUrl;
-
-  // ============================================================
   // PAGE
   // ============================================================
 
@@ -751,11 +781,6 @@ function Explore() {
                     .slice(0, 30)
                     .map((sighting) => {
 
-                      const imageUrl =
-                        getImageUrl(
-                          sighting
-                        );
-
                       const cardKey =
                         getSightingKey(sighting);
 
@@ -780,40 +805,7 @@ function Explore() {
 
                           {/* IMAGE */}
 
-                          {imageUrl && (
-                            <img
-                              src={imageUrl}
-                              alt={
-                                sighting.species
-                                  ?.commonName ||
-                                "Kingfisher observation"
-                              }
-                              className="sighting-image"
-                              loading="lazy"
-                              decoding="async"
-                              onError={(event) => {
-
-                                const fallback =
-                                  sighting.media?.[0]
-                                    ?.url;
-
-                                if (
-                                  fallback &&
-                                  event.currentTarget
-                                    .src !==
-                                    fallback
-                                ) {
-                                  event.currentTarget.src =
-                                    fallback;
-                                } else {
-                                  event.currentTarget
-                                    .style.display =
-                                    "none";
-                                }
-
-                              }}
-                            />
-                          )}
+                          <ExploreSightingImage sighting={sighting} />
 
                           {/* CARD BODY */}
 

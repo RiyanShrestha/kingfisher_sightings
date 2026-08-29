@@ -833,6 +833,9 @@ function KingfisherMap({
                         className="map-popup-image"
                         loading="lazy"
                         decoding="async"
+                        onError={(event) => {
+                          event.currentTarget.style.display = "none";
+                        }}
                       />
                     )}
 

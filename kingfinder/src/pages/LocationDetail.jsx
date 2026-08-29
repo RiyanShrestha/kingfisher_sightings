@@ -15,9 +15,47 @@ import PageContainer from "../components/PageContainer";
 import KingfisherMap from "../components/KingfisherMap";
 import { getGoogleMapsUrl, getBestImageUrl } from "../utils/sightingHelpers";
 import { calculateLocationScore } from "./photographer/scoring";
+import { getSpeciesKey, hasImage, getActivityCounts, getActivityValue } from "./photographer/helpers";
 import { API_ENDPOINTS } from "../config/api";
 
 const API_URL = API_ENDPOINTS.SIGHTINGS;
+
+function LocationObservationImage({ sighting }) {
+  const [imgError, setImgError] = useState(false);
+  const imgUrl = getBestImageUrl(sighting);
+
+  if (!imgUrl || imgError) {
+    return (
+      <div
+        style={{
+          width: "90px",
+          height: "90px",
+          borderRadius: "8px",
+          backgroundColor: "#f1f5f9",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#94a3b8",
+          flexShrink: 0,
+        }}
+        aria-label="No photo available"
+      >
+        <Camera size={24} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imgUrl}
+      alt={sighting.species?.commonName || "Kingfisher observation"}
+      style={{ width: "90px", height: "90px", objectFit: "cover", borderRadius: "8px", flexShrink: 0 }}
+      loading="lazy"
+      decoding="async"
+      onError={() => setImgError(true)}
+    />
+  );
+}
 
 function LocationDetail() {
   const { locationId } = useParams();
@@ -109,14 +147,27 @@ function LocationDetail() {
   const speciesList = Object.entries(speciesMap).sort((a, b) => b[1] - a[1]);
   const primarySpecies = speciesList[0] ? speciesList[0][0] : "Kingfishers";
 
-  // Calculate score using existing formula
-  const locationGroup = {
-    locationName,
-    latitude,
-    longitude,
+  // Build location aggregate matching the shape expected by calculateLocationScore
+  const speciesKeys = new Set(locationSightings.map(getSpeciesKey));
+  const imageSightings = locationSightings.filter(hasImage).length;
+  const activity = getActivityCounts(locationSightings);
+
+  const locationAggregate = {
     sightings: locationSightings,
+    speciesKeys,
+    imageSightings,
+    activity,
   };
-  const scoreResult = calculateLocationScore(locationGroup, "ALL");
+
+  // When scoring a single location, maximums equal the location's own values
+  const maximums = {
+    maxSightings: locationSightings.length,
+    maxSpecies: speciesKeys.size,
+    maxImages: imageSightings,
+    maxActivity: getActivityValue(activity),
+  };
+
+  const scoreResult = calculateLocationScore(locationAggregate, maximums, false);
 
   return (
     <PageContainer>
@@ -152,7 +203,7 @@ function LocationDetail() {
               color: "var(--color-primary)",
             }}
           >
-            {scoreResult.tierLabel} ({scoreResult.score}/100)
+            Score: {scoreResult.total}/100
           </span>
         </div>
         <h1 style={{ fontSize: "2.2rem", marginBottom: "0.5rem" }}>{locationName}</h1>
@@ -198,7 +249,7 @@ function LocationDetail() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", fontSize: "0.85rem", marginBottom: "0.4rem" }}>
             <Award size={16} /> Photographer Score
           </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#0f172a" }}>{scoreResult.score}/100</div>
+          <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#0f172a" }}>{scoreResult.total}/100</div>
         </div>
       </div>
 
@@ -263,7 +314,6 @@ function LocationDetail() {
         <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "1rem" }}>Recorded Observations</h2>
         <div style={{ display: "grid", gap: "1rem" }}>
           {locationSightings.map((sighting) => {
-            const imgUrl = getBestImageUrl(sighting);
             return (
               <div
                 key={sighting.id}
@@ -277,28 +327,7 @@ function LocationDetail() {
                   flexWrap: "wrap",
                 }}
               >
-                {imgUrl ? (
-                  <img
-                    src={imgUrl}
-                    alt={sighting.species?.commonName}
-                    style={{ width: "90px", height: "90px", objectFit: "cover", borderRadius: "8px" }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "90px",
-                      height: "90px",
-                      borderRadius: "8px",
-                      backgroundColor: "#f1f5f9",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#94a3b8",
-                    }}
-                  >
-                    <Camera size={24} />
-                  </div>
-                )}
+                <LocationObservationImage sighting={sighting} />
                 <div style={{ flex: 1, minWidth: "220px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
                     <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>

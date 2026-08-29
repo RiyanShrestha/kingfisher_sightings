@@ -12,9 +12,10 @@ import {
   Target,
 } from "lucide-react";
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import PageContainer from "../components/PageContainer";
-import { getGoogleMapsUrl } from "../utils/sightingHelpers";
+import { getGoogleMapsUrl, getBestImageUrl } from "../utils/sightingHelpers";
 import {
   formatDate,
   getObservationDate,
@@ -22,6 +23,30 @@ import {
 } from "./photographer/helpers";
 import { usePhotographerData } from "./photographer/usePhotographerData";
 import "./photographer/photographerStyles.css";
+
+function LocationCardImage({ sighting }) {
+  const [imgError, setImgError] = useState(false);
+  const imageUrl = getBestImageUrl(sighting);
+
+  if (!imageUrl || imgError) {
+    return (
+      <div className="location-placeholder">
+        <Camera size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={getSpeciesName(sighting)}
+      className="location-image"
+      loading="lazy"
+      decoding="async"
+      onError={() => setImgError(true)}
+    />
+  );
+}
 
 // ============================================================
 // PHOTOGRAPHER PAGE
@@ -627,30 +652,10 @@ function Photographer() {
             <div className="location-grid">
               {rankedLocations.slice(0, 9).map((location, index) => {
                 const latest = location.latestSighting;
-                const image =
-                  latest?.primaryImageUrl ||
-                  latest?.media?.[0]?.url ||
-                  latest?.media?.[0]?.originalUrl ||
-                  null;
 
                 return (
                   <article className="location-card" key={location.key}>
-                    {image ? (
-                      <img
-                        src={image}
-                        alt={getSpeciesName(latest)}
-                        className="location-image"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(event) => {
-                          event.currentTarget.style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <div className="location-placeholder">
-                        <Camera size={32} />
-                      </div>
-                    )}
+                    <LocationCardImage sighting={latest} />
                     <div className="location-card-body">
                       <div className="location-rank">
                         <span className="location-rank-number">
