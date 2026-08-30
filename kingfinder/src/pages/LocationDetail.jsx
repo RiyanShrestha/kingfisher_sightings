@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import PageContainer from "../components/PageContainer";
 import KingfisherMap from "../components/KingfisherMap";
-import { getGoogleMapsUrl, getBestImageUrl } from "../utils/sightingHelpers";
+import { getGoogleMapsUrl, getBestImageUrl, getSightingKey } from "../utils/sightingHelpers";
 import { calculateLocationScore } from "./photographer/scoring";
 import { getSpeciesKey, hasImage, getActivityCounts, getActivityValue } from "./photographer/helpers";
 import { API_ENDPOINTS } from "../config/api";
@@ -316,7 +316,7 @@ function LocationDetail() {
           {locationSightings.map((sighting) => {
             return (
               <div
-                key={sighting.id}
+                key={getSightingKey(sighting)}
                 className="placeholder-card"
                 style={{
                   padding: "1rem",
@@ -333,7 +333,7 @@ function LocationDetail() {
                     <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>
                       {sighting.species?.commonName || "Kingfisher"}
                     </h3>
-                    <span style={{ fontSize: "0.8rem", color: "#64748b", italic: "true" }}>
+                    <span style={{ fontSize: "0.8rem", color: "#64748b", fontStyle: "italic" }}>
                       ({sighting.species?.scientificName})
                     </span>
                   </div>

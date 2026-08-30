@@ -2067,6 +2067,17 @@ app.post(
         });
       }
 
+      if (photoUrl && typeof photoUrl === "string") {
+        const isHttpUrl = /^https?:\/\//i.test(photoUrl);
+        const isDataUrl = /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(photoUrl);
+        if (!isHttpUrl && !isDataUrl) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid photo URL: must be a valid http(s) URL or base64 image data.",
+          });
+        }
+      }
+
       const id = `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
       const newSighting = {
@@ -2465,6 +2476,26 @@ app.get(
     }
   }
 );
+
+/* ============================================================
+   ERROR HANDLING & 404
+============================================================ */
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error("Unhandled server error:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal server error",
+  });
+});
 
 /* ============================================================
    SERVER

@@ -544,6 +544,9 @@ function ReportSighting() {
                   src={formData.photoUrl}
                   alt="Sighting preview"
                   style={{ maxHeight: "200px", borderRadius: "8px", border: "1px solid #cbd5e1", objectFit: "cover" }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
               </div>
             )}
@@ -628,7 +631,14 @@ function ReportSighting() {
                 <div>
                   <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Attached Image:</span>
                   <div style={{ marginTop: "0.5rem" }}>
-                    <img src={formData.photoUrl} alt="Attached" style={{ maxHeight: "180px", borderRadius: "6px" }} />
+                    <img
+                      src={formData.photoUrl}
+                      alt="Attached"
+                      style={{ maxHeight: "180px", borderRadius: "6px" }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
                   </div>
                 </div>
               )}

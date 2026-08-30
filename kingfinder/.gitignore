@@ -2,9 +2,11 @@
 node_modules/
 server/node_modules/
 
-# Build output
+# Build output & caches
 dist/
 server/dist/
+.vercel
+.vite/
 
 # Environment variables
 .env
